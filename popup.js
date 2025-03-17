@@ -1,61 +1,81 @@
-document.getElementById("set-password").addEventListener("click", async () => {
-  const password = document.getElementById("password").value;
-  if (password) {
-      chrome.runtime.sendMessage({ type: "SET_PASSWORD", password });
-      alert("Password set successfully!");
-  }
-});
-
-document.getElementById("show-history").addEventListener("click", async () => {
-  const password = document.getElementById("password").value;
-  if (!password) {
-      alert("Please enter your password");
-      return;
-  }
-
-  const historyList = document.getElementById("history-list");
-  historyList.innerHTML = "";
-
-  // Load encrypted data from storage
-  chrome.storage.local.get(null, async (items) => {
-      const encoder = new TextEncoder();
-
-      // Derive key for decryption
-      const hashedPassword = await crypto.subtle.digest("SHA-256", encoder.encode(password));
-      const keyMaterial = await crypto.subtle.importKey(
-          "raw", hashedPassword, { name: "PBKDF2" }, false, ["deriveKey"]
-      );
-      const encryptionKey = await crypto.subtle.deriveKey(
-          {
-              name: "PBKDF2",
-              salt: new Uint8Array(16),
-              iterations: 100000,
-              hash: "SHA-256"
-          },
-          keyMaterial,
-          { name: "AES-GCM", length: 256 },
-          true,
-          ["encrypt", "decrypt"]
-      );
-
-      for (const [timestamp, { data, iv }] of Object.entries(items)) {
-          try {
-              const encryptedData = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-              const ivData = Uint8Array.from(atob(iv), (c) => c.charCodeAt(0));
-              
-              const decryptedUrl = await crypto.subtle.decrypt(
-                  { name: "AES-GCM", iv: ivData },
-                  encryptionKey,
-                  encryptedData
-              );
-
-              const url = new TextDecoder().decode(decryptedUrl);
-              const li = document.createElement("li");
-              li.textContent = url;
-              historyList.appendChild(li);
-          } catch (error) {
-              console.error("Failed to decrypt:", error);
-          }
+document.addEventListener("DOMContentLoaded", function () {
+    const setupDiv = document.getElementById("setupDiv");
+    const loginDiv = document.getElementById("loginDiv");
+    const settingsDiv = document.getElementById("settingsDiv");
+    const loginError = document.getElementById("loginError");
+  
+    // Check if the master password is already set.
+    chrome.storage.local.get(["masterPassword"], function (result) {
+      if (!result.masterPassword) {
+        // Show setup view to set password.
+        setupDiv.classList.remove("hidden");
+      } else {
+        // Show login view.
+        loginDiv.classList.remove("hidden");
       }
+    });
+  
+    // Handle setting a new master password.
+    document.getElementById("setPasswordBtn").addEventListener("click", function () {
+      const newPassword = document.getElementById("newPassword").value;
+      if (newPassword) {
+        // Simple hash demonstration; replace with a secure hash in production.
+        const hashed = btoa(newPassword);
+        chrome.storage.local.set({ masterPassword: hashed }, function () {
+          setupDiv.classList.add("hidden");
+          loginDiv.classList.remove("hidden");
+        });
+      }
+    });
+  
+    // Handle login.
+    document.getElementById("loginBtn").addEventListener("click", function () {
+      const loginPassword = document.getElementById("loginPassword").value;
+      chrome.storage.local.get(["masterPassword"], function (result) {
+        const hashed = btoa(loginPassword);
+        if (hashed === result.masterPassword) {
+          loginDiv.classList.add("hidden");
+          settingsDiv.classList.remove("hidden");
+          loadBlacklist();
+        } else {
+          loginError.textContent = "Incorrect password!";
+        }
+      });
+    });
+  
+    // Add a new entry to the blacklist.
+    document.getElementById("addBlacklistBtn").addEventListener("click", function () {
+      const entry = document.getElementById("blacklistInput").value;
+      if (!entry) return;
+      chrome.storage.local.get(["blacklist"], function (result) {
+        let list = result.blacklist || [];
+        list.push(entry);
+        chrome.storage.local.set({ blacklist: list }, function () {
+          document.getElementById("blacklistInput").value = "";
+          loadBlacklist();
+        });
+      });
+    });
+  
+    // Load and display the blacklist.
+    function loadBlacklist() {
+      chrome.storage.local.get(["blacklist"], function (result) {
+        const list = result.blacklist || [];
+        const ul = document.getElementById("blacklistList");
+        ul.innerHTML = "";
+        list.forEach((entry, index) => {
+          const li = document.createElement("li");
+          li.textContent = entry;
+          const delBtn = document.createElement("button");
+          delBtn.textContent = "Delete";
+          delBtn.addEventListener("click", function () {
+            list.splice(index, 1);
+            chrome.storage.local.set({ blacklist: list }, loadBlacklist);
+          });
+          li.appendChild(delBtn);
+          ul.appendChild(li);
+        });
+      });
+    }
   });
-});
+  
