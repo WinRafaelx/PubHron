@@ -4,230 +4,101 @@ let encryptionKey;
 let salt;
 let passwordSet = false;
 
-const browserSearch = ["google", "bing", "yahoo", "duckduckgo"];
-
-const pornSites = [
-  "porn",
-  "xxx",
-  "xvideo",
-  "nude",
-  "sex",
-  "pornhub",
-  "redtube",
-  "brazzers",
-  "nudity",
-  "erotic",
-  "nsfw",
-  "hentai",
-  "jav",
-  "milf",
-  "bbw",
-  "incest",
-  "fetish",
-  "pornstar",
-  "masturbation",
-  "cum",
-  "hardcore",
-  "bdsm",
-  "doujin",
-  "rule34",
-  "18+",
-  "fakku",
-  "e-hentai",
-  "nhentai",
-  "โป๊",
-  "เย็ด",
-  "เอ็ก",
-  "ควย",
-  "หี",
-  "เสียว",
-  "ลามก",
-  "หนังโป๊",
-  "คลิปหลุด",
-  "ช่วยตัวเอง",
-  "ขายตัว",
-  "เปลือย",
-  "แก้ผ้า",
-  "จิ๋ม",
-  "สวิงกิ้ง",
-  "น้ำแตก",
-  "หนังx",
-  "นมใหญ่",
-  "หำ",
-  "รูหี",
-  "ชักว่าว",
-  "เย็ดสด",
-  "ดูดควย",
-  "ลงแขก",
-  "ตั้งกล้อง",
-  "โดนจ้อน",
-  "จ้อน",
-  "ควยถอก",
-  "หัวควย",
-  "ไข่สั่น",
-  "หีแฉะ",
-  "เย็ดหี",
-  "เย็ดตูด",
-  "แทงหี",
-  "ดูหี",
-  "นมโต",
-  "เงี่ยน",
-  "เย็ดแรง",
-  "ขย่มควย",
-  "แหกหี",
-  "ควยใหญ่",
-  "ควยแข็ง",
-  "เย็ดมันส์",
-  "เอาสด",
-  "ปี้",
-  "ล่อหี",
-  "เสร็จคาปาก",
-  "นั่งเทียน",
-  "ไซด์ไลน์",
-  "แตกใน",
-  "แตกปาก",
-  "หีฟิต",
-  "หีใหญ่",
-  "หีดำ",
-  "เกี่ยวเบ็ด",
-  "อมสด",
-  "ควยปลอม",
-  "doujinshi",
-  "dojin",
-  "dojinshi",
-  "ecchi",
-  "oppai",
-  "lolicon",
-  "shotacon",
-  "ahegao",
-  "h-manga",
-  "eromanga",
-  "exhentai",
-];
-
-// Use a Set for faster lookup
-const flaggedKeywords = new Set([
-  "explicit",
-  "adult",
-  "unsafe",
-  ...browserSearch,
-  ...pornSites,
-]);
-
-// Compile regex once (non-global, case-insensitive)
-const flaggedRegex = new RegExp([...flaggedKeywords].join("|"), "i");
-
-const recentVisits = new Set();
-
-chrome.webNavigation.onCommitted.addListener(async (details) => {
-  if (!passwordSet || !encryptionKey) return;
-
-  if (details.frameId !== 0) return;
-
-  const urlObj = new URL(details.url);
-  const query = urlObj.searchParams.get("q");
-  const targetContent = (query || details.url).toLowerCase();
-
-  if (flaggedRegex.test(targetContent)) {
-    console.log("Flagged URL detected:", details.url);
-
-    if (recentVisits.has(details.url)) return;
-    recentVisits.add(details.url);
-    setTimeout(() => recentVisits.delete(details.url), 5000);
-
-    const result = await encryptUrl(details.url);
-    if (!result) return;
-
-    const { encryptedData, iv } = result;
-    const encryptedString = btoa(String.fromCharCode(...encryptedData));
-    const ivString = btoa(String.fromCharCode(...iv));
-
-    chrome.storage.local.set({
-      [Date.now()]: { data: encryptedString, iv: ivString },
-    });
-
-    await deleteFromHistory(details.url);
-    console.log("Deleted from history:", details.url);
+const pornKeywords = [
+    "porn", "xxx", "xvideo", "nude", "sex", "pornhub", "redtube", "brazzers", 
+    "nudity", "erotic", "nsfw", "hentai", "jav", "milf", "bbw", "incest", "fetish", 
+    "pornstar", "masturbation", "cum", "hardcore", "bdsm", "doujin", "rule34", 
+    "18+", "fakku", "e-hentai", "nhentai", "โป๊", "เย็ด", "เอ็ก", "ควย", "หี", 
+    "เสียว", "ลามก", "หนังโป๊", "คลิปหลุด", "ช่วยตัวเอง", "ขายตัว", "เปลือย", 
+    "แก้ผ้า", "จิ๋ม", "สวิงกิ้ง", "น้ำแตก", "หนังx", "นมใหญ่", "หำ", "รูหี", 
+    "ชักว่าว", "เย็ดสด", "ดูดควย", "ลงแขก", "ตั้งกล้อง", "โดนจ้อน", "จ้อน", 
+    "ควยถอก", "หัวควย", "ไข่สั่น", "หีแฉะ", "เย็ดหี", "เย็ดตูด", "แทงหี", 
+    "ดูหี", "นมโต", "เงี่ยน", "เย็ดแรง", "ขย่มควย", "แหกหี", "ควยใหญ่", 
+    "ควยแข็ง", "เย็ดมันส์", "เอาสด", "ปี้", "ล่อหี", "เสร็จคาปาก", "นั่งเทียน", 
+    "ไซด์ไลน์", "แตกใน", "แตกปาก", "หีฟิต", "หีใหญ่", "หีดำ", "เกี่ยวเบ็ด", 
+    "อมสด", "ควยปลอม", "doujinshi", "dojin", "dojinshi", "ecchi", "oppai", 
+    "lolicon", "shotacon", "ahegao", "h-manga", "eromanga", "exhentai"
+  ];
+  
+  const deleteQueue = new Set();
+  
+  const pornRegex = new RegExp(pornKeywords.join("|"), "i");
+  
+  // ✅ Improved deletion logic with debouncing
+  async function deleteFromHistory(url) {
+    if (deleteQueue.has(url)) return; // Skip if already deleting
+    deleteQueue.add(url);
+  
+    try {
+      setTimeout(() => {
+        chrome.history.search({ text: "", maxResults: 10000 }, (historyItems) => {
+          for (const item of historyItems) {
+            // Clean up URL (remove query and fragment for better matching)
+            const baseUrl = new URL(item.url).origin + new URL(item.url).pathname;
+            const targetBaseUrl = new URL(url).origin + new URL(url).pathname;
+  
+            // Match full URL, base URL, or regex-based content
+            if (
+              item.url === url ||
+              baseUrl === targetBaseUrl ||
+              pornRegex.test(item.url) || // Regex-based match
+              pornRegex.test(item.title)
+            ) {
+              chrome.history.deleteUrl({ url: item.url }, () => {
+                console.log(`✅ Deleted history entry: ${item.url}`);
+              });
+            }
+          }
+        });
+  
+        deleteQueue.delete(url); // Clean up after deletion
+      }, 200); // Small delay to avoid async conflict
+    } catch (error) {
+      console.error("❌ Error deleting from history:", error);
+      deleteQueue.delete(url);
+    }
   }
-});
-
-// ✅ Check title and meta description for better content filtering using `fetch`
-chrome.webNavigation.onCompleted.addListener(
-  async (details) => {
-    if (!passwordSet || !encryptionKey) return;
-
-    if (recentVisits.has(details.url)) return;
-
+  
+  // ✅ Trigger deletion on URL commit (when the user finishes navigating)
+  chrome.webNavigation.onCommitted.addListener((details) => {
+    if (!details.url) return;
+    if (pornRegex.test(details.url)) {
+      console.log(`🚫 Pornographic URL detected: ${details.url}`);
+      deleteFromHistory(details.url);
+    }
+  });
+  
+  // ✅ Additional check for title-based content (after page load)
+  chrome.webNavigation.onCompleted.addListener(async (details) => {
+    if (deleteQueue.has(details.url)) return; // Skip if already processed
+  
     try {
       const response = await fetch(details.url);
       if (!response.ok) return;
-
+  
       const html = await response.text();
-
+  
       const titleMatch = html.match(/<title>(.*?)<\/title>/i);
       const metaMatch = html.match(
         /<meta\s+name="description"\s+content="(.*?)"/i
       );
-
+  
       const pageTitle = titleMatch ? titleMatch[1].toLowerCase() : "";
       const pageDescription = metaMatch ? metaMatch[1].toLowerCase() : "";
-
-      if (flaggedRegex.test(pageTitle) || flaggedRegex.test(pageDescription)) {
-        console.log("Flagged Content Detected:", details.url);
-
-        if (recentVisits.has(details.url)) return;
-        recentVisits.add(details.url);
-        setTimeout(() => recentVisits.delete(details.url), 5000);
-
-        const result = await encryptUrl(details.url);
-        if (!result) return;
-
-        const { encryptedData, iv } = result;
-        const encryptedString = btoa(String.fromCharCode(...encryptedData));
-        const ivString = btoa(String.fromCharCode(...iv));
-
-        chrome.storage.local.set({
-          [Date.now()]: { data: encryptedString, iv: ivString },
-        });
-
-        await deleteFromHistory(details.url);
-        console.log("Deleted from history:", details.url);
+  
+      if (
+        pornRegex.test(pageTitle) || // Match based on title content
+        pornRegex.test(pageDescription)
+      ) {
+        console.log(`🚫 Pornographic content detected in title/meta: ${details.url}`);
+        deleteFromHistory(details.url);
       }
     } catch (error) {
-      console.error("Failed to fetch content:", error);
+      console.error("❌ Failed to fetch page content:", error);
     }
-  },
-  { url: [{ schemes: ["http", "https"] }] }
-);
-
-async function deleteFromHistory(url) {
-  try {
-    const urlObj = new URL(url);
-    const baseUrl = `${urlObj.origin}${urlObj.pathname}`; // Remove query and fragment
-
-    chrome.history.search({ text: "", maxResults: 10000 }, (historyItems) => {
-      for (const item of historyItems) {
-        const itemUrlObj = new URL(item.url);
-        const itemBaseUrl = `${itemUrlObj.origin}${itemUrlObj.pathname}`;
-
-        // Match base URLs and remove fragments or query params
-        if (
-          item.url === url || // Exact match
-          itemBaseUrl === baseUrl || // Base URL match
-          item.url.startsWith(baseUrl) || // Partial match for variations
-          item.title.includes(urlObj.hostname) // Title-based match
-        ) {
-          chrome.history.deleteUrl({ url: item.url }, () => {
-            console.log(`Deleted history entry: ${item.url}`);
-          });
-        }
-      }
-    });
-  } catch (error) {
-    console.error("Failed to delete from history:", error);
-  }
-}
-
+  }, { url: [{ schemes: ["http", "https"] }] });
+  
+  
 async function deriveKeyFromPassword(password, providedSalt) {
   try {
     if (providedSalt) {
