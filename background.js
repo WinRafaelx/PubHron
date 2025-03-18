@@ -1,5 +1,4 @@
 const encoder = new TextEncoder();
-const flaggedKeywords = ["porn", "explicit", "adult", "unsafe"];
 
 let encryptionKey;
 let salt;
@@ -84,46 +83,59 @@ async function deleteFromHistory(url) {
     });
 }
 
-// ✅ Handle search query AND direct URLs
+const browserSearch = ["google", "bing", "yahoo", "duckduckgo"];
+const pornSites = [
+  "porn", "xxx", "xvideo", "โป๊", "เย็ด", "เอ็ก", "ควย", "หี", "เสียว",
+  "nude", "sex", "pornhub", "redtube", "brazzers", "nudity", "erotic", "nsfw",
+  "hentai", "jav", "milf", "bbw", "incest", "fetish", "pornstar", "masturbation",
+  "cum", "hardcore", "bdsm", "ลามก", "หนังโป๊", "คลิปหลุด", "ช่วยตัวเอง",
+  "ขายตัว", "เปลือย", "แก้ผ้า", "จิ๋ม", "สวิงกิ้ง", "น้ำแตก", "หนังx",
+  "นมใหญ่", "หำ", "รูหี", "ชักว่าว", "เย็ดสด", "ดูดควย", "ลงแขก", "ตั้งกล้อง",
+  "โดนจ้อน", "จ้อน", "ควยถอก", "หัวควย", "ไข่สั่น", "หีแฉะ", "เย็ดหี",
+  "เย็ดตูด", "แทงหี", "ดูหี", "นมโต", "เงี่ยน", "เย็ดแรง", "ขย่มควย",
+  "แหกหี", "ควยใหญ่", "ควยแข็ง", "เย็ดมันส์", "เอาสด", "ปี้", "ล่อหี",
+  "เสร็จคาปาก", "นั่งเทียน", "ไซด์ไลน์", "แตกใน", "แตกปาก", "หีฟิต",
+  "หีใหญ่", "หีดำ", "เกี่ยวเบ็ด", "อมสด", "ควยปลอม",
+  "doujin", "doujinshi", "dojin", "dojinshi", "ecchi", "oppai",
+  "lolicon", "shotacon", "ahegao", "h-manga", "eromanga", "rule34",
+  "nhentai", "fakku", "exhentai", "e-hentai", "18+"
+];
+
+const flaggedKeywords = ["explicit", "adult", "unsafe", ...browserSearch, ...pornSites];
+
+// Compile regex once, with global and case-insensitive flags
+const flaggedRegex = new RegExp(flaggedKeywords.join("|"), "i");
+
 chrome.webNavigation.onCommitted.addListener(async (details) => {
     if (!passwordSet || !encryptionKey) return;
 
-    // Only track main frame requests
     if (details.frameId !== 0) return;
 
-    let targetUrl = details.url;
-    let queryString = new URL(targetUrl).searchParams.get("q");
+    const urlObj = new URL(details.url);
+    const query = urlObj.searchParams.get("q");
+    const targetContent = (query || details.url).toLowerCase();
 
-    // ✅ Handle Google search terms separately
-    if (queryString) {
-        targetUrl = queryString.toLowerCase(); // Use search query if available
-    }
+    // Single efficient regex match instead of looping
+    if (flaggedRegex.test(targetContent)) {
+        console.log("Flagged URL detected:", details.url);
 
-    for (const keyword of flaggedKeywords) {
-        if (targetUrl.toLowerCase().includes(keyword.toLowerCase())) {
-            console.log("Flagged URL detected:", details.url);
+        if (recentVisits.has(details.url)) return;
+        recentVisits.add(details.url);
+        setTimeout(() => recentVisits.delete(details.url), 5000);
 
-            // ✅ Avoid double-logging within 5 seconds
-            if (recentVisits.has(details.url)) return;
-            recentVisits.add(details.url);
-            setTimeout(() => recentVisits.delete(details.url), 5000);
+        const result = await encryptUrl(details.url);
+        if (!result) return;
 
-            // ✅ Encrypt and store
-            const result = await encryptUrl(details.url);
-            if (!result) return;
+        const { encryptedData, iv } = result;
+        const encryptedString = btoa(String.fromCharCode(...encryptedData));
+        const ivString = btoa(String.fromCharCode(...iv));
 
-            const { encryptedData, iv } = result;
-            const encryptedString = btoa(String.fromCharCode(...encryptedData));
-            const ivString = btoa(String.fromCharCode(...iv));
-            chrome.storage.local.set({
-                [Date.now()]: { data: encryptedString, iv: ivString }
-            });
+        chrome.storage.local.set({
+            [Date.now()]: { data: encryptedString, iv: ivString }
+        });
 
-            // ✅ Delete from history using partial matching
-            await deleteFromHistory(details.url);
-
-            break;
-        }
+        await deleteFromHistory(details.url);
+        console.log("Deleted from history:", details.url);
     }
 });
 
@@ -152,6 +164,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 sendResponse({ success: false, error: error.message });
             });
 
+        return true;
+    } 
+    else if (message.type === "VERIFY_PASSWORD") {
+        deriveKeyFromPassword(message.password, message.salt)
+            .then(success => {
+                if (success) {
+                    console.log("Password verified successfully");
+                    sendResponse({ success: true });
+                } else {
+                    sendResponse({ success: false, error: "Invalid password" });
+                }
+            })
+            .catch(error => {
+                sendResponse({ success: false, error: error.message });
+            });
+
+        return true;
+    }
+    else if (message.type === "DECRYPT_URL") {
+        const encryptedData = Uint8Array.from(atob(message.data), (c) => c.charCodeAt(0));
+        const ivData = Uint8Array.from(atob(message.iv), (c) => c.charCodeAt(0));
+        
+        decryptUrl(encryptedData, ivData)
+            .then(url => {
+                if (url) {
+                    sendResponse({ success: true, decryptedUrl: url });
+                } else {
+                    sendResponse({ success: false, error: "Failed to decrypt URL" });
+                }
+            })
+            .catch(error => {
+                sendResponse({ success: false, error: error.message });
+            });
+            
+        return true;
+    }
+    else if (message.type === "LOGOUT") {
+        // Reset the encryption key but keep the salt
+        encryptionKey = null;
+        passwordSet = false;
+        sendResponse({ success: true });
         return true;
     }
 });

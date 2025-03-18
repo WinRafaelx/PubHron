@@ -3,7 +3,7 @@ body {
 }
 
 .container {
-  width: 250px;
+  width: 300px;
   padding: 20px;
 }
 
@@ -11,14 +11,45 @@ input, button {
   display: block;
   width: 100%;
   margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+button {
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #3367d6;
 }
 
 ul {
   list-style-type: none;
   padding: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 15px;
 }
 
 li {
-  padding: 5px;
+  padding: 8px;
   border-bottom: 1px solid #ccc;
+  word-break: break-all;
+}
+
+h2 {
+  color: #333;
+  text-align: center;
+}
+
+#logout-button {
+  background-color: #db4437;
+}
+
+#logout-button:hover {
+  background-color: #c53929;
 }
