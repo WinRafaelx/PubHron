@@ -1,17 +1,16 @@
 {
-    "manifest_version": 3,
-    "name": "Secure Local History",
-    "version": "1.0",
-    "permissions": ["storage", "history", "webNavigation"],
-    "host_permissions": [],
-    "background": {
-      "service_worker": "background.js"
-    },
-    "action": {
-      "default_popup": "popup.html"
-    },
-    "content_security_policy": {
-      "extension_pages": "script-src 'self'; object-src 'self'"
-    }
+  "manifest_version": 3,
+  "name": "Secure Local History",
+  "version": "1.0",
+  "permissions": ["storage", "history", "webNavigation", "tabs", "declarativeNetRequest"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
   }
-  
+}
