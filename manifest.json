@@ -2,8 +2,18 @@
   "manifest_version": 3,
   "name": "Secure Local History",
   "version": "1.0",
-  "permissions": ["storage", "history", "webNavigation", "tabs", "declarativeNetRequest"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": [
+    "declarativeNetRequest",
+    "notifications",
+    "storage",
+    "history",
+    "webNavigation",
+    "tabs",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -12,5 +22,15 @@
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "config.json"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }
