@@ -2,10 +2,20 @@
   "manifest_version": 3,
   "name": "Secure Local History",
   "version": "1.0",
-  "permissions": ["storage", "history", "webNavigation", "tabs", "declarativeNetRequest"],
+  "permissions": [
+    "storage",
+    "history",
+    "webNavigation",
+    "tabs",
+    "declarativeNetRequest",
+    "browsingData",
+    "cookies",
+    "webRequest" 
+  ],
   "host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "action": {
     "default_popup": "popup.html"
