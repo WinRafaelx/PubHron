@@ -6,91 +6,74 @@ let encryptionKey;
 let salt;
 let passwordSet = false;
 
-const deleteQueue = new Set();
+// Replace simple Set with object that includes timestamps
+const deleteQueue = {};
 
+// Create a compiled regex pattern once instead of rebuilding it each time
 const pornRegex = new RegExp(pornKeywords.join("|"), "i");
 
-// ✅ Improved deletion logic with debouncing
+// Create a debounce function for expensive operations
+function debounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+// Improved deletion logic with better debouncing
 async function deleteFromHistory(url) {
-  if (deleteQueue.has(url)) return;
-  deleteQueue.add(url);
+  const now = Date.now();
+  const urlKey = new URL(url).origin;
+  
+  // Skip if we've processed this domain in the last 5 seconds
+  if (deleteQueue[urlKey] && (now - deleteQueue[urlKey] < 5000)) {
+    return;
+  }
+  
+  deleteQueue[urlKey] = now;
 
   try {
-    // 1. Delete from history
-    chrome.history.search({ text: "", maxResults: 10000 }, (historyItems) => {
-      for (const item of historyItems) {
-        const baseUrl = new URL(item.url).origin + new URL(item.url).pathname;
-        const targetBaseUrl = new URL(url).origin + new URL(url).pathname;
-
-        if (
-          item.url === url ||
-          baseUrl === targetBaseUrl ||
-          pornRegex.test(item.url) ||
-          pornRegex.test(item.title)
-        ) {
-          chrome.history.deleteUrl({ url: item.url }, () => {
-            console.log(`✅ Deleted history entry: ${item.url}`);
-          });
-        }
-      }
+    // Only delete specific URL rather than searching all history
+    chrome.history.deleteUrl({ url }, () => {
+      console.log(`✅ Deleted history entry: ${url}`);
     });
 
-    // 2. Clear cache and storage
-    chrome.browsingData.remove(
-      { origins: [new URL(url).origin] },
-      {
-        cache: true,
-        indexedDB: true,
-        localStorage: true,
-        serviceWorkers: true,
-        cacheStorage: true,
-      },
-      () => console.log(`✅ Cache and storage cleared for: ${url}`)
-    );
+    // Use more targeted removal with a specific timeframe
+    chrome.browsingData.remove({
+      origins: [new URL(url).origin],
+      since: now - (15 * 60 * 1000) // Only last 15 minutes
+    }, {
+      cache: true,
+      cookies: true, 
+      localStorage: true,
+      serviceWorkers: true
+    }, () => console.log(`✅ Cache and storage cleared for: ${url}`));
 
-    // 3. Clear cookies
-    chrome.cookies.getAll({ domain: new URL(url).hostname }, (cookies) => {
-      cookies.forEach((cookie) => {
-        chrome.cookies.remove({
-          url: `https://${cookie.domain}${cookie.path}`,
-          name: cookie.name,
-        });
-        console.log(`✅ Cookie deleted: ${cookie.name}`);
-      });
-    });
-
-    // 4. Clear DNS cache
-    chrome.webRequest.handlerBehaviorChanged(() => {
-      console.log("✅ Network stack refreshed");
-    });
-
-    // 5. Unregister service workers
-    if ("serviceWorker" in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      for (const registration of registrations) {
-        if (registration.scope.includes(new URL(url).origin)) {
-          await registration.unregister();
-          console.log(`✅ Service worker unregistered for: ${url}`);
-        }
-      }
-    }
-
-    deleteQueue.delete(url); // Clean up after deletion
+    // Clean up old entries from queue after 10 seconds
+    setTimeout(() => {
+      delete deleteQueue[urlKey];
+    }, 10000);
   } catch (error) {
     console.error("❌ Error deleting from history:", error);
-    deleteQueue.delete(url);
+    delete deleteQueue[urlKey];
   }
 }
 
+// Process URL in batches with debouncing
+const processUrl = debounce(async (url) => {
+  if (pornRegex.test(url)) {
+    console.log(`🚫 Pornographic URL detected: ${url}`);
+    deleteFromHistory(url);
 
-// ✅ Trigger deletion on URL commit (when the user finishes navigating)
-chrome.webNavigation.onCommitted.addListener(async (details) => {
-  if (!details.url) return;
-  if (pornRegex.test(details.url)) {
-    console.log(`🚫 Pornographic URL detected: ${details.url}`);
-    deleteFromHistory(details.url);
-
-    const result = await encryptUrl(details.url);
+    // Only encrypt if we have an encryption key
+    if (!encryptionKey) return;
+    
+    const result = await encryptUrl(url);
     if (!result) return;
 
     const { encryptedData, iv } = result;
@@ -101,50 +84,52 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
       [Date.now()]: { data: encryptedString, iv: ivString },
     });
   }
+}, 300); // Process URLs after 300ms of inactivity
+
+// More efficient event listener with debouncing
+chrome.webNavigation.onCommitted.addListener((details) => {
+  if (!details.url || details.frameId !== 0) return; // Only process main frame
+  processUrl(details.url);
 });
 
-// ✅ Additional check for title-based content (after page load)
+// Cache for page content checks to avoid checking the same pages multiple times
+const checkedPages = {};
+
+// More efficient page content checking
 chrome.webNavigation.onCompleted.addListener(
-  async (details) => {
-    if (deleteQueue.has(details.url)) return; // Skip if already processed
-
-    try {
-      const response = await fetch(details.url);
-      if (!response.ok) return;
-
-      const html = await response.text();
-
-      const titleMatch = html.match(/<title>(.*?)<\/title>/i);
-      const metaMatch = html.match(
-        /<meta\s+name="description"\s+content="(.*?)"/i
-      );
-
-      const pageTitle = titleMatch ? titleMatch[1].toLowerCase() : "";
-      const pageDescription = metaMatch ? metaMatch[1].toLowerCase() : "";
-
-      if (
-        pornRegex.test(pageTitle) || // Match based on title content
-        pornRegex.test(pageDescription)
-      ) {
-        console.log(
-          `🚫 Pornographic content detected in title/meta: ${details.url}`
-        );
-        deleteFromHistory(details.url);
-      }
-
-      const result = await encryptUrl(details.url);
-      if (!result) return;
-
-      const { encryptedData, iv } = result;
-      const encryptedString = btoa(String.fromCharCode(...encryptedData));
-      const ivString = btoa(String.fromCharCode(...iv));
-
-      chrome.storage.local.set({
-        [Date.now()]: { data: encryptedString, iv: ivString },
-      });
-    } catch (error) {
-      console.error("❌ Failed to fetch page content:", error);
+  (details) => {
+    if (!details.url || details.frameId !== 0) return; // Only process main frame
+    const urlObj = new URL(details.url);
+    const urlKey = urlObj.hostname + urlObj.pathname;
+    
+    // Skip if we've checked this URL in the last 5 minutes
+    if (checkedPages[urlKey] && (Date.now() - checkedPages[urlKey] < 300000)) {
+      return;
     }
+    
+    checkedPages[urlKey] = Date.now();
+    
+    // Optimize by not checking content for known safe domains
+    const safeHostnames = ['google.com', 'github.com', 'microsoft.com'];
+    if (safeHostnames.some(safe => urlObj.hostname.includes(safe))) {
+      return;
+    }
+    
+    // Clean up old cache entries
+    if (Object.keys(checkedPages).length > 1000) {
+      const oldestAllowed = Date.now() - 3600000; // 1 hour
+      for (const key in checkedPages) {
+        if (checkedPages[key] < oldestAllowed) {
+          delete checkedPages[key];
+        }
+      }
+    }
+
+    // Skip if already queued for deletion
+    if (deleteQueue[urlObj.origin]) return;
+
+    // Send the info for processing and encrypting instead of fetching content
+    processUrl(details.url);
   },
   { url: [{ schemes: ["http", "https"] }] }
 );
@@ -300,7 +285,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           console.error("Detailed decryption error:", error);
           sendResponse({ 
             success: false, 
-            error: `Decryption failed: ${error.name || 'Unknown error'}`
+            error: `Decryption failed: ${error.name || 'Unknown error'}` 
           });
         });
     } catch (error) {

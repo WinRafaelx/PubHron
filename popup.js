@@ -19,12 +19,21 @@ document.getElementById("set-password").addEventListener("click", async () => {
             // Convert salt to string for storage
             const saltString = btoa(String.fromCharCode(...salt));
             
+            // Show loading state
+            const button = document.getElementById("set-password");
+            const originalText = button.textContent;
+            button.disabled = true;
+            button.textContent = "Setting password...";
+            
             // Send message and wait for response
             chrome.runtime.sendMessage({ 
                 type: "SET_PASSWORD", 
                 password,
                 salt: saltString 
             }, response => {
+                button.disabled = false;
+                button.textContent = originalText;
+                
                 if (response && response.success) {
                     // Store salt in local storage
                     chrome.storage.local.set({ "encryption_salt": saltString });
@@ -62,12 +71,21 @@ document.getElementById("login-button").addEventListener("click", async () => {
         }
 
         try {
+            // Show loading state
+            const button = document.getElementById("login-button");
+            const originalText = button.textContent;
+            button.disabled = true;
+            button.textContent = "Logging in...";
+            
             // Verify password by sending to background script
             chrome.runtime.sendMessage({
                 type: "VERIFY_PASSWORD",
                 password,
                 salt: result.encryption_salt
             }, response => {
+                button.disabled = false;
+                button.textContent = originalText;
+                
                 if (response && response.success) {
                     // Password correct, show history view
                     document.getElementById("login-view").style.display = "none";
@@ -83,41 +101,136 @@ document.getElementById("login-button").addEventListener("click", async () => {
     });
 });
 
-// Show history functionality
+// Improved history loading with pagination
 document.getElementById("show-history").addEventListener("click", async () => {
     const historyList = document.getElementById("history-list");
-    historyList.innerHTML = "";
+    historyList.innerHTML = "<li>Loading history...</li>";
+    
+    // Show loading state
+    const button = document.getElementById("show-history");
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Loading...";
 
     // Load encrypted data from storage
     chrome.storage.local.get(null, async (items) => {
-        // Skip processing if we don't have items
-        if (!items) return;
+        // Reset UI
+        historyList.innerHTML = "";
+        button.disabled = false;
+        button.textContent = originalText;
         
-        // Process history items
-        for (const [key, value] of Object.entries(items)) {
-            // Skip the salt entry
-            if (key === "encryption_salt") continue;
+        // Skip processing if we don't have items
+        if (!items) {
+            historyList.innerHTML = "<li>No history found.</li>";
+            return;
+        }
+        
+        // Extract and sort timestamps (keys)
+        const timestamps = Object.keys(items)
+            .filter(key => key !== "encryption_salt" && key !== "password_set")
+            .sort((a, b) => parseInt(b) - parseInt(a)); // Sort newest first
+        
+        if (timestamps.length === 0) {
+            historyList.innerHTML = "<li>No history found.</li>";
+            return;
+        }
+        
+        // Process only the most recent 50 items for better performance
+        const batch = timestamps.slice(0, 50);
+        let processed = 0;
+        
+        // Process history items in smaller batches with requestAnimationFrame
+        function processNextBatch(startIdx) {
+            const endIdx = Math.min(startIdx + 5, batch.length);
             
-            try {
-                const { data, iv } = value;
+            for (let i = startIdx; i < endIdx; i++) {
+                const timestamp = batch[i];
+                const value = items[timestamp];
                 
-                // Request decryption from background script
-                chrome.runtime.sendMessage({
-                    type: "DECRYPT_URL",
-                    data,
-                    iv
-                }, response => {
-                    if (response && response.success) {
-                        const url = response.decryptedUrl;
-                        const li = document.createElement("li");
-                        li.textContent = `${new Date(parseInt(key)).toLocaleString()}: ${url}`;
-                        historyList.appendChild(li);
-                    }
+                try {
+                    const { data, iv } = value;
+                    
+                    // Request decryption from background script
+                    chrome.runtime.sendMessage({
+                        type: "DECRYPT_URL",
+                        data,
+                        iv
+                    }, response => {
+                        if (response && response.success) {
+                            const url = response.decryptedUrl;
+                            const li = document.createElement("li");
+                            li.textContent = `${new Date(parseInt(timestamp)).toLocaleString()}: ${url}`;
+                            historyList.appendChild(li);
+                        }
+                    });
+                } catch (error) {
+                    console.error("Failed to process history item:", error);
+                }
+            }
+            
+            processed = endIdx;
+            
+            // If there are more items to process, schedule the next batch
+            if (processed < batch.length) {
+                requestAnimationFrame(() => processNextBatch(processed));
+            } else if (batch.length < timestamps.length) {
+                // Add a "Load more" button if there are more items
+                const loadMoreLi = document.createElement("li");
+                loadMoreLi.innerHTML = "<button id='load-more'>Load more...</button>";
+                historyList.appendChild(loadMoreLi);
+                
+                document.getElementById("load-more").addEventListener("click", () => {
+                    // Load the next batch when clicked
+                    loadMoreLi.remove();
+                    loadMoreHistory(50, batch.length);
                 });
-            } catch (error) {
-                console.error("Failed to process history item:", error);
             }
         }
+        
+        // Function to load more history items
+        function loadMoreHistory(count, skip) {
+            const nextBatch = timestamps.slice(skip, skip + count);
+            
+            for (const timestamp of nextBatch) {
+                const value = items[timestamp];
+                
+                try {
+                    const { data, iv } = value;
+                    
+                    // Request decryption from background script
+                    chrome.runtime.sendMessage({
+                        type: "DECRYPT_URL",
+                        data,
+                        iv
+                    }, response => {
+                        if (response && response.success) {
+                            const url = response.decryptedUrl;
+                            const li = document.createElement("li");
+                            li.textContent = `${new Date(parseInt(timestamp)).toLocaleString()}: ${url}`;
+                            historyList.appendChild(li);
+                        }
+                    });
+                } catch (error) {
+                    console.error("Failed to process history item:", error);
+                }
+            }
+            
+            // Add "Load more" button if there are still more items
+            if (skip + count < timestamps.length) {
+                const loadMoreLi = document.createElement("li");
+                loadMoreLi.innerHTML = "<button id='load-more'>Load more...</button>";
+                historyList.appendChild(loadMoreLi);
+                
+                document.getElementById("load-more").addEventListener("click", () => {
+                    // Load the next batch when clicked
+                    loadMoreLi.remove();
+                    loadMoreHistory(50, skip + count);
+                });
+            }
+        }
+        
+        // Start processing
+        processNextBatch(0);
     });
 });
 
