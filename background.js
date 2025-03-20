@@ -2,6 +2,11 @@ import {
   initNavigationHandlers, 
   deleteFromHistory, 
   testForPornContent,
+  testForGamblingContent,
+  testForPiracyContent,
+  isAdTracker,
+  isHttpOnly,
+  checkSiteCategories,
   debounce 
 } from "./handler/navigationHandler.js";
 
@@ -20,17 +25,51 @@ initializeEncryption();
 
 // Process URL in batches with debouncing
 const processUrl = debounce(async (url) => {
-  if (testForPornContent(url)) {
-    console.log(`🚫 Pornographic URL detected: ${url}`);
-    deleteFromHistory(url);
+  try {
+    // Check for pornographic content
+    if (testForPornContent(url)) {
+      console.log(`🚫 Pornographic URL detected: ${url}`);
+      deleteFromHistory(url);
 
-    if (!hasEncryptionKey()) return;
+      if (hasEncryptionKey()) {
+        const result = await encryptUrl(url);
+        if (result) {
+          const { encryptedData, iv } = result;
+          saveEncryptedUrl(encryptedData, iv);
+        }
+      }
+      return;
+    }
+
+    // Check other categories
+    const urlObj = new URL(url);
     
-    const result = await encryptUrl(url);
-    if (!result) return;
-
-    const { encryptedData, iv } = result;
-    saveEncryptedUrl(encryptedData, iv);
+    // Check for ads and trackers
+    if (isAdTracker(urlObj.hostname)) {
+      console.log(`📊 Ad/Tracker domain detected: ${url}`);
+      return;
+    }
+    
+    // Check for HTTP-only sites
+    if (isHttpOnly(url)) {
+      console.log(`🔓 HTTP-only site detected: ${url}`);
+      return;
+    }
+    
+    // Check for gambling sites
+    if (testForGamblingContent(url)) {
+      console.log(`🎰 Gambling site detected: ${url}`);
+      return;
+    }
+    
+    // Check for torrent/piracy sites
+    if (testForPiracyContent(url)) {
+      console.log(`🏴‍☠️ Torrent/Piracy site detected: ${url}`);
+      return;
+    }
+    
+  } catch (error) {
+    console.error("Error processing URL:", error);
   }
 }, 300);
 
