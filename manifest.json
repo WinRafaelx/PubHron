@@ -10,7 +10,8 @@
     "declarativeNetRequest",
     "browsingData",
     "cookies",
-    "webRequest" 
+    "webRequest",
+    "scripting" 
   ],
   "host_permissions": ["<all_urls>"],
   "background": {
