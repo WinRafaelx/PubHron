@@ -65,10 +65,15 @@ function cleanCheckedPagesCache(limit = 1000, expiryMs = 3600000) {
   }
 }
 
-function initNavigationHandlers() {
+function initNavigationHandlers(urlCallback) {
   chrome.webNavigation.onCommitted.addListener(({ url, frameId, tabId }) => {
     if (frameId === 0 && testForPornContent(url)) {
       deleteFromHistory(url);
+      
+      // Call the provided callback if it exists
+      if (typeof urlCallback === 'function') {
+        urlCallback(url);
+      }
     }
   });
 
@@ -88,6 +93,11 @@ function initNavigationHandlers() {
 
     if (testForPornContent(href)) {
       deleteFromHistory(href);
+      
+      // Call the provided callback if it exists
+      if (typeof urlCallback === 'function') {
+        urlCallback(href);
+      }
     } else {
       analyzePageContent(tabId, href);
     }

@@ -34,8 +34,15 @@ const processUrl = debounce(async (url) => {
   }
 }, 300);
 
-// Initialize navigation handlers
+// Initialize navigation handlers with processUrl callback
 initNavigationHandlers(processUrl);
+
+// Add a listener for tab updates to process URLs
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url) {
+    processUrl(tab.url);
+  }
+});
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SET_PASSWORD") {
