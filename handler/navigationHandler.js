@@ -11,6 +11,22 @@ const warningShown = new Set(); // Track URLs we've already shown warnings for
 
 const SAFE_HOSTNAMES = new Set(['google.com', 'github.com', 'microsoft.com']);
 
+// Add this new function to detect Google Search pages
+function isGoogleSearch(url) {
+  try {
+    const urlObj = new URL(url);
+    if (!urlObj.hostname.includes('google.')) return false;
+
+    // Check if it's a search results page
+    return urlObj.pathname === '/search' || 
+           urlObj.pathname === '/webhp' || 
+           urlObj.search.includes('?q=') || 
+           urlObj.search.includes('&q=');
+  } catch (e) {
+    return false;
+  }
+}
+
 const debounce = (fn, delay) => {
   let timeout;
   return (...args) => {
@@ -105,76 +121,85 @@ async function showWarningPage(url, reason, tabId) {
   }
 }
 
+// Modify the checkSiteCategories function
 async function checkSiteCategories(url, tabId) {
   const urlObj = new URL(url);
   const { hostname, href } = urlObj;
-  
+
   // Skip safe hostnames
   if (SAFE_HOSTNAMES.has(hostname)) return null;
-  
+
+  // Allow non-porn categories in Google Search results
+  const isSearch = isGoogleSearch(href);
+
   // Check for HTTP-only sites
-  if (isHttpOnly(href)) {
+  if (isHttpOnly(href) && !isSearch) {
     return {
       category: "http",
       reason: "This site uses an unencrypted HTTP connection instead of secure HTTPS"
     };
   }
-  
+
   // Check for ads and trackers
-  if (isAdTracker(hostname)) {
+  if (isAdTracker(hostname) && !isSearch) {
     return {
       category: "adTracker",
       reason: "This appears to be an advertising or tracking domain"
     };
   }
-  
+
   // Check for gambling
-  if (testForGamblingContent(href)) {
+  if (testForGamblingContent(href) && !isSearch) {
     return {
       category: "gambling",
       reason: "This appears to be a gambling or betting website"
     };
   }
-  
+
   // Check for torrents/piracy
-  if (testForPiracyContent(href)) {
+  if (testForPiracyContent(href) && !isSearch) {
     return {
       category: "piracy",
       reason: "This appears to be a torrent or piracy-related website"
     };
   }
-  
-  // Check Google Safe Browsing
-  const isMalicious = await checkUrlSafety(href);
-  if (isMalicious) {
-    return {
-      category: "unsafe",
-      reason: "This site has been identified as potentially unsafe by Google Safe Browsing"
-    };
+
+  // Check Google Safe Browsing - also bypass for search results
+  if (!isSearch) {
+    const isMalicious = await checkUrlSafety(href);
+    if (isMalicious) {
+      return {
+        category: "unsafe",
+        reason: "This site has been identified as potentially unsafe by Google Safe Browsing"
+      };
+    }
   }
-  
+
   return null;
 }
 
+// Modify the initNavigationHandlers function
 function initNavigationHandlers(urlCallback) {
   chrome.webNavigation.onCommitted.addListener(async ({ url, frameId, tabId }) => {
     if (frameId === 0) {
-      // Check for pornographic content first
+      // Always check for pornographic content first, regardless of being Google Search or not
       if (testForPornContent(url)) {
         deleteFromHistory(url);
-        
+
         // Call the provided callback if it exists
         if (typeof urlCallback === 'function') {
           urlCallback(url);
         }
         return;
       }
-      
-      // Check other unsafe categories
-      const result = await checkSiteCategories(url, tabId);
-      if (result) {
-        // Show warning for other categories
-        showWarningPage(url, result.reason, tabId);
+
+      // Check other unsafe categories only if not a Google Search
+      if (!isGoogleSearch(url)) {
+        const result = await checkSiteCategories(url, tabId);
+        if (result) {
+          // Show warning for other categories
+          showWarningPage(url, result.reason, tabId);
+        }
       }
     }
   });
@@ -222,5 +247,6 @@ export {
   isAdTracker,
   isHttpOnly,
   checkSiteCategories,
-  debounce 
+  debounce,
+  isGoogleSearch // Export the new function
 };

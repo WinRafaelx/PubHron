@@ -1,7 +1,18 @@
+import { getConfig } from "./config.js";
+
 // Google Safe Browsing API configuration
-// Replace API_KEY with your actual Google Safe Browsing API key
-const SAFE_BROWSING_API_KEY = "AIzaSyCycTN0AIpyYdYCn5kmWAtR70enfJ1xhkE";
-const SAFE_BROWSING_ENDPOINT = `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${SAFE_BROWSING_API_KEY}`;
+let SAFE_BROWSING_API_KEY;
+let SAFE_BROWSING_ENDPOINT;
+
+// Initialize API configuration
+async function initializeApi() {
+  const config = await getConfig();
+  SAFE_BROWSING_API_KEY = config.SAFE_BROWSING_API_KEY || "";
+  SAFE_BROWSING_ENDPOINT = `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${SAFE_BROWSING_API_KEY}`;
+}
+
+// Initialize immediately
+initializeApi();
 
 /**
  * Check if a URL is potentially unsafe using Google Safe Browsing API
@@ -12,6 +23,14 @@ async function checkUrlSafety(url) {
   try {
     // Don't check empty URLs
     if (!url || url === 'about:blank') return false;
+
+    if (!SAFE_BROWSING_ENDPOINT) {
+      await initializeApi();
+    }
+    if (!SAFE_BROWSING_API_KEY) {
+      console.warn("Safe Browsing API key not available");
+      return false;
+    }
     
     const requestBody = {
       client: {
