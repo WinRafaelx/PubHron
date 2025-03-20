@@ -182,6 +182,11 @@ async function checkSiteCategories(url, tabId) {
 function initNavigationHandlers(urlCallback) {
   chrome.webNavigation.onCommitted.addListener(async ({ url, frameId, tabId }) => {
     if (frameId === 0) {
+      // Skip processing if it's already a warning page
+      if (url.startsWith(chrome.runtime.getURL('warning.html'))) {
+        return;
+      }
+
       // Always check for pornographic content first, regardless of being Google Search or not
       if (testForPornContent(url)) {
         deleteFromHistory(url);
@@ -206,6 +211,11 @@ function initNavigationHandlers(urlCallback) {
 
   chrome.webNavigation.onCompleted.addListener(debounce(async ({ url, frameId, tabId }) => {
     if (frameId !== 0) return;
+
+    // Skip processing if it's already a warning page
+    if (url.startsWith(chrome.runtime.getURL('warning.html'))) {
+      return;
+    }
 
     const urlObj = new URL(url);
     const { hostname, pathname, href } = urlObj;

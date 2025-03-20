@@ -14,11 +14,6 @@ async function initializeApi() {
 // Initialize immediately
 initializeApi();
 
-/**
- * Check if a URL is potentially unsafe using Google Safe Browsing API
- * @param {string} url - The URL to check
- * @return {Promise<boolean>} - True if unsafe, false if safe
- */
 async function checkUrlSafety(url) {
   try {
     // Don't check empty URLs
@@ -62,11 +57,6 @@ async function checkUrlSafety(url) {
   }
 }
 
-/**
- * Check if a URL uses HTTP instead of HTTPS
- * @param {string} url - The URL to check
- * @return {boolean} - True if the URL uses HTTP
- */
 function isHttpOnly(url) {
   try {
     return new URL(url).protocol === 'http:';
