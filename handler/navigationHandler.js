@@ -1,5 +1,5 @@
 import { pornKeywords, gamblingKeywords, torrentPiracyKeywords, adTrackerDomains } from "../keywords.js";
-import { checkUrlSafety, isHttpOnly } from "../safetyChecker.js";
+import { checkUrlSafety, isHttpOnly } from "./safetyChecker.js";
 
 const pornRegex = new RegExp(pornKeywords.join("|"), "iu");
 const gamblingRegex = new RegExp(gamblingKeywords.join("|"), "iu");
