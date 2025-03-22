@@ -14,4 +14,30 @@ const pornKeywords = [
     "lolicon", "shotacon", "ahegao", "h-manga", "eromanga", "exhentai"
 ];
 
-export { pornKeywords}
+const gamblingKeywords = [
+    "bet", "betting", "casino", "poker", "slot", "slots", "gambling", "jackpot", "lottery",
+    "roulette", "blackjack", "baccarat", "sportsbetting", "sportsbet", "wager", "bookmaker",
+    "odds", "bingo", "stake", "betway", "betfair", "bookie", "paddypower", "ladbrokes", "888",
+    "unibet", "williamhill", "betfred", "casumo", "draftkings", "fanduel", "bovada"
+];
+
+const torrentPiracyKeywords = [
+    "torrent", "pirate", "piracy", "crack", "warez", "nulled", "keygen", "serial",
+    "rapidshare", "megaupload", "filehosting", "rar password", "download free movie",
+    "cracked software", "1337x", "thepiratebay", "rarbg", "eztv", "yts", "nyaa", "rutracker",
+    "demonoid", "limetorrent", "kickass", "extratorrents", "nyaasi", "magnetdl", "bitsnoop",
+    "streaming free", "watch online free", "download mp3", "free ebook", "free pdf",
+    "rapidgator", "uploaded", "uploadgig", "nitroflare", "filefactory"
+];
+
+const adTrackerDomains = [
+    "doubleclick.net", "googlesyndication.com", "adservice.google", "google-analytics.com",
+    "analytics.google.com", "googletagmanager.com", "adnxs.com", "rubiconproject.com",
+    "quantserve.com", "scorecardresearch.com", "amazon-adsystem.com", "casalemedia.com",
+    "criteo.com", "pubmatic.com", "openx.net", "taboola.com", "outbrain.com", "zedo.com",
+    "yandex.ru", "hotjar.com", "chartbeat.com", "sharethis.com", "addthis.com",
+    "facebook.net", "connect.facebook.net", "facebook.com/tr/", "linkedin.com/px"
+];
+
+
+export { pornKeywords, gamblingKeywords, torrentPiracyKeywords, adTrackerDomains };

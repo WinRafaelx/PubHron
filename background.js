@@ -2,7 +2,13 @@ import {
   initNavigationHandlers, 
   deleteFromHistory, 
   testForPornContent,
-  debounce 
+  testForGamblingContent,
+  testForPiracyContent,
+  isAdTracker,
+  isHttpOnly,
+  checkSiteCategories,
+  debounce,
+  isGoogleSearch
 } from "./handler/navigationHandler.js";
 
 import {
@@ -18,19 +24,60 @@ import {
 // Initialize encryption system on startup
 initializeEncryption();
 
-// Process URL in batches with debouncing
+// Update the processUrl function
 const processUrl = debounce(async (url) => {
-  if (testForPornContent(url)) {
-    console.log(`🚫 Pornographic URL detected: ${url}`);
-    deleteFromHistory(url);
+  try {
+    // Always check for pornographic content
+    if (testForPornContent(url)) {
+      console.log(`🚫 Pornographic URL detected: ${url}`);
+      deleteFromHistory(url);
 
-    if (!hasEncryptionKey()) return;
-    
-    const result = await encryptUrl(url);
-    if (!result) return;
+      if (hasEncryptionKey()) {
+        const result = await encryptUrl(url);
+        if (result) {
+          const { encryptedData, iv } = result;
+          saveEncryptedUrl(encryptedData, iv);
+        }
+      }
+      return;
+    }
 
-    const { encryptedData, iv } = result;
-    saveEncryptedUrl(encryptedData, iv);
+    // Check if it's a Google Search page
+    if (isGoogleSearch(url)) {
+      // For Google Search, we only block porn (already checked above)
+      // Allow all other content categories
+      return;
+    }
+
+    // For non-Google Search pages, check all other categories
+    const urlObj = new URL(url);
+
+    // Check for ads and trackers
+    if (isAdTracker(urlObj.hostname)) {
+      console.log(`📊 Ad/Tracker domain detected: ${url}`);
+      return;
+    }
+
+    // Check for HTTP-only sites
+    if (isHttpOnly(url)) {
+      console.log(`🔓 HTTP-only site detected: ${url}`);
+      return;
+    }
+
+    // Check for gambling sites
+    if (testForGamblingContent(url)) {
+      console.log(`🎰 Gambling site detected: ${url}`);
+      return;
+    }
+
+    // Check for torrent/piracy sites
+    if (testForPiracyContent(url)) {
+      console.log(`🏴‍☠️ Torrent/Piracy site detected: ${url}`);
+      return;
+    }
+
+  } catch (error) {
+    console.error("Error processing URL:", error);
   }
 }, 300);
 
