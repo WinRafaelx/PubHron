@@ -19,10 +19,10 @@
     "type": "module"
   },
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "views/html/popup.html"
   },
   "web_accessible_resources": [{
-    "resources": ["warning.html", ".env"],
+    "resources": ["views/html/warning.html", ".env"],
     "matches": ["<all_urls>"]
   }],
   "content_security_policy": {
