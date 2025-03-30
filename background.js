@@ -1,6 +1,6 @@
-import { 
-  initNavigationHandlers, 
-  deleteFromHistory, 
+import {
+  initNavigationHandlers,
+  deleteFromHistory,
   testForPornContent,
   testForGamblingContent,
   testForPiracyContent,
@@ -79,7 +79,7 @@ const processUrl = debounce(async (url) => {
   } catch (error) {
     console.error("Error processing URL:", error);
   }
-}, 300);
+}, 500);
 
 // Initialize navigation handlers with processUrl callback
 initNavigationHandlers(processUrl);
@@ -90,6 +90,15 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     processUrl(tab.url);
   }
 });
+
+function isValidBase64(string) {
+  try {
+    return btoa(atob(string)) === string;
+  } catch (e) {
+    return false;
+  }
+}
+
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SET_PASSWORD") {
@@ -127,8 +136,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: false, error: "No encryption key available. Please log in first." });
       return true;
     }
-    
+
     try {
+      if (!isValidBase64(message.data) || !isValidBase64(message.iv)) {
+        sendResponse({ success: false, error: "Invalid Base64 data" });
+        return true;
+      }
+
       const encryptedData = Uint8Array.from(atob(message.data), (c) =>
         c.charCodeAt(0)
       );
@@ -144,15 +158,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })
         .catch((error) => {
           console.error("Detailed decryption error:", error);
-          sendResponse({ 
-            success: false, 
-            error: `Decryption failed: ${error.name || 'Unknown error'}` 
+          sendResponse({
+            success: false,
+            error: `Decryption failed: ${error.name || 'Unknown error'}`
           });
         });
     } catch (error) {
       console.error("Error processing encrypted data:", error);
       sendResponse({ success: false, error: "Invalid encrypted data format" });
     }
+
 
     return true;
   } else if (message.type === "LOGOUT") {

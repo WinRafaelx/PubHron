@@ -102,25 +102,30 @@ async function decryptUrl(encryptedData, iv) {
   }
 
   try {
+    if (!(encryptedData instanceof ArrayBuffer)) {
+      encryptedData = new Uint8Array(encryptedData).buffer;
+    }
+    if (!(iv instanceof ArrayBuffer)) {
+      iv = new Uint8Array(iv).buffer;
+    }
+
     const decrypted = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv },
       encryptionKey,
       encryptedData
     );
+
     return new TextDecoder().decode(decrypted);
   } catch (error) {
-    if (error.name === 'OperationError') {
-      console.error("Decryption operation error:", error);
-    } else {
-      console.error("Decryption error:", error, "Type:", error.name);
-    }
+    console.error("Decryption error:", error, "Type:", error.name);
     return null;
   }
 }
-
 function saveEncryptedUrl(encryptedData, iv) {
   const encryptedString = btoa(String.fromCharCode(...encryptedData));
   const ivString = btoa(String.fromCharCode(...iv));
+
+  console.log("hello save encrypt");
 
   chrome.storage.local.set({
     [Date.now()]: { data: encryptedString, iv: ivString },
