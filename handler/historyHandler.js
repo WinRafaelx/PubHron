@@ -5,7 +5,7 @@ let salt;
 let passwordSet = false;
 
 async function initializeEncryption() {
-  chrome.storage.local.get(["encryption_salt", "password_set"], async (result) => {
+  chrome.storage.local.get(["encryption_salt", "encryption_key", "password_set"], async (result) => {
     if (result.encryption_salt) {
       salt = Uint8Array.from(atob(result.encryption_salt), (c) => c.charCodeAt(0));
       passwordSet = !!result.password_set;
@@ -13,8 +13,21 @@ async function initializeEncryption() {
     } else {
       console.log("No password set yet");
     }
+
+    if (result.encryption_key) {
+      const keyBuffer = Uint8Array.from(atob(result.encryption_key), (c) => c.charCodeAt(0));
+      encryptionKey = await crypto.subtle.importKey(
+        "raw",
+        keyBuffer,
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"]
+      );
+      console.log("🔑 Encryption key restored");
+    }
   });
 }
+
 
 async function deriveKeyFromPassword(password, providedSalt) {
   try {
@@ -23,9 +36,9 @@ async function deriveKeyFromPassword(password, providedSalt) {
     } else {
       salt = crypto.getRandomValues(new Uint8Array(16));
       const saltString = btoa(String.fromCharCode(...salt));
-      chrome.storage.local.set({ 
+      chrome.storage.local.set({
         encryption_salt: saltString,
-        password_set: true 
+        password_set: true
       });
     }
 
@@ -52,6 +65,11 @@ async function deriveKeyFromPassword(password, providedSalt) {
       true,
       ["encrypt", "decrypt"]
     );
+
+    const exportedKey = await crypto.subtle.exportKey("raw", encryptionKey);
+    const keyString = btoa(String.fromCharCode(...new Uint8Array(exportedKey)));
+    chrome.storage.local.set({ encryption_key: keyString });
+
     passwordSet = true;
     return true;
   } catch (error) {
@@ -59,6 +77,7 @@ async function deriveKeyFromPassword(password, providedSalt) {
     return false;
   }
 }
+
 
 async function encryptUrl(url) {
   if (!encryptionKey) return null;
@@ -81,27 +100,32 @@ async function decryptUrl(encryptedData, iv) {
     console.error("Decryption attempted without an encryption key");
     return null;
   }
-  
+
   try {
+    if (!(encryptedData instanceof ArrayBuffer)) {
+      encryptedData = new Uint8Array(encryptedData).buffer;
+    }
+    if (!(iv instanceof ArrayBuffer)) {
+      iv = new Uint8Array(iv).buffer;
+    }
+
     const decrypted = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv },
       encryptionKey,
       encryptedData
     );
+
     return new TextDecoder().decode(decrypted);
   } catch (error) {
-    if (error.name === 'OperationError') {
-      console.error("Decryption operation error:", error);
-    } else {
-      console.error("Decryption error:", error, "Type:", error.name);
-    }
+    console.error("Decryption error:", error, "Type:", error.name);
     return null;
   }
 }
-
 function saveEncryptedUrl(encryptedData, iv) {
   const encryptedString = btoa(String.fromCharCode(...encryptedData));
   const ivString = btoa(String.fromCharCode(...iv));
+
+  console.log("hello save encrypt");
 
   chrome.storage.local.set({
     [Date.now()]: { data: encryptedString, iv: ivString },
@@ -111,7 +135,9 @@ function saveEncryptedUrl(encryptedData, iv) {
 function resetEncryptionKey() {
   encryptionKey = null;
   passwordSet = false;
+
 }
+
 
 function hasEncryptionKey() {
   return !!encryptionKey;

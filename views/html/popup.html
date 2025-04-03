@@ -1,27 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="../css/style.css" />
     <title>Secure History</title>
 </head>
+
 <body>
     <div class="container">
         <h2>Secure History</h2>
-        
+
         <!-- Initial setup view -->
         <div id="setup-view">
             <input type="password" id="password" placeholder="Set Password" />
             <button id="set-password">Set Password</button>
         </div>
-        
+
         <!-- Login view (shown after password is set) -->
         <div id="login-view" style="display: none;">
             <input type="password" id="login-password" placeholder="Enter Password" />
             <button id="login-button">Login</button>
         </div>
-        
+
         <!-- History view (shown after successful login) -->
         <div id="history-view" style="display: none;">
             <button id="show-history">Show History</button>
@@ -29,6 +31,7 @@
             <ul id="history-list"></ul>
         </div>
     </div>
-    <script src="../../popup.js"></script>
+    <script src="../js/popup.js"></script>
 </body>
+
 </html>

@@ -18,27 +18,27 @@ document.getElementById("set-password").addEventListener("click", async () => {
             const salt = crypto.getRandomValues(new Uint8Array(16));
             // Convert salt to string for storage
             const saltString = btoa(String.fromCharCode(...salt));
-            
+
             // Show loading state
             const button = document.getElementById("set-password");
             const originalText = button.textContent;
             button.disabled = true;
             button.textContent = "Setting password...";
-            
+
             // Send message and wait for response
-            chrome.runtime.sendMessage({ 
-                type: "SET_PASSWORD", 
+            chrome.runtime.sendMessage({
+                type: "SET_PASSWORD",
                 password,
-                salt: saltString 
+                salt: saltString
             }, response => {
                 button.disabled = false;
                 button.textContent = originalText;
-                
+
                 if (response && response.success) {
                     // Store salt in local storage
                     chrome.storage.local.set({ "encryption_salt": saltString });
                     alert("Password set successfully!");
-                    
+
                     // Switch to login view
                     document.getElementById("setup-view").style.display = "none";
                     document.getElementById("login-view").style.display = "block";
@@ -76,7 +76,7 @@ document.getElementById("login-button").addEventListener("click", async () => {
             const originalText = button.textContent;
             button.disabled = true;
             button.textContent = "Logging in...";
-            
+
             // Verify password by sending to background script
             chrome.runtime.sendMessage({
                 type: "VERIFY_PASSWORD",
@@ -85,11 +85,12 @@ document.getElementById("login-button").addEventListener("click", async () => {
             }, response => {
                 button.disabled = false;
                 button.textContent = originalText;
-                
+
                 if (response && response.success) {
                     // Password correct, show history view
                     document.getElementById("login-view").style.display = "none";
                     document.getElementById("history-view").style.display = "block";
+                    document.getElementById("history-list").innerHTML = "";
                 } else {
                     alert("Incorrect password. Please try again.");
                 }
@@ -105,7 +106,7 @@ document.getElementById("login-button").addEventListener("click", async () => {
 document.getElementById("show-history").addEventListener("click", async () => {
     const historyList = document.getElementById("history-list");
     historyList.innerHTML = "<li>Loading history...</li>";
-    
+
     // Show loading state
     const button = document.getElementById("show-history");
     const originalText = button.textContent;
@@ -118,38 +119,38 @@ document.getElementById("show-history").addEventListener("click", async () => {
         historyList.innerHTML = "";
         button.disabled = false;
         button.textContent = originalText;
-        
+
         // Skip processing if we don't have items
         if (!items) {
             historyList.innerHTML = "<li>No history found.</li>";
             return;
         }
-        
+
         // Extract and sort timestamps (keys)
         const timestamps = Object.keys(items)
             .filter(key => key !== "encryption_salt" && key !== "password_set")
             .sort((a, b) => parseInt(b) - parseInt(a)); // Sort newest first
-        
+
         if (timestamps.length === 0) {
             historyList.innerHTML = "<li>No history found.</li>";
             return;
         }
-        
+
         // Process only the most recent 50 items for better performance
         const batch = timestamps.slice(0, 50);
         let processed = 0;
-        
+
         // Process history items in smaller batches with requestAnimationFrame
         function processNextBatch(startIdx) {
             const endIdx = Math.min(startIdx + 5, batch.length);
-            
+
             for (let i = startIdx; i < endIdx; i++) {
                 const timestamp = batch[i];
                 const value = items[timestamp];
-                
+
                 try {
                     const { data, iv } = value;
-                    
+
                     // Request decryption from background script
                     chrome.runtime.sendMessage({
                         type: "DECRYPT_URL",
@@ -159,7 +160,18 @@ document.getElementById("show-history").addEventListener("click", async () => {
                         if (response && response.success) {
                             const url = response.decryptedUrl;
                             const li = document.createElement("li");
-                            li.textContent = `${new Date(parseInt(timestamp)).toLocaleString()}: ${url}`;
+                            const a = document.createElement("a");
+                            const span = document.createElement("span");
+
+                            const formattedTime = new Date(Number(timestamp)).toLocaleString();
+
+                            span.textContent = `${formattedTime}: `;
+                            a.href = url;
+                            a.textContent = url;
+                            a.target = "_blank";
+
+                            li.appendChild(span);
+                            li.appendChild(a);
                             historyList.appendChild(li);
                         }
                     });
@@ -167,9 +179,9 @@ document.getElementById("show-history").addEventListener("click", async () => {
                     console.error("Failed to process history item:", error);
                 }
             }
-            
+
             processed = endIdx;
-            
+
             // If there are more items to process, schedule the next batch
             if (processed < batch.length) {
                 requestAnimationFrame(() => processNextBatch(processed));
@@ -178,7 +190,7 @@ document.getElementById("show-history").addEventListener("click", async () => {
                 const loadMoreLi = document.createElement("li");
                 loadMoreLi.innerHTML = "<button id='load-more'>Load more...</button>";
                 historyList.appendChild(loadMoreLi);
-                
+
                 document.getElementById("load-more").addEventListener("click", () => {
                     // Load the next batch when clicked
                     loadMoreLi.remove();
@@ -186,17 +198,17 @@ document.getElementById("show-history").addEventListener("click", async () => {
                 });
             }
         }
-        
+
         // Function to load more history items
         function loadMoreHistory(count, skip) {
             const nextBatch = timestamps.slice(skip, skip + count);
-            
+
             for (const timestamp of nextBatch) {
                 const value = items[timestamp];
-                
+
                 try {
                     const { data, iv } = value;
-                    
+
                     // Request decryption from background script
                     chrome.runtime.sendMessage({
                         type: "DECRYPT_URL",
@@ -206,7 +218,18 @@ document.getElementById("show-history").addEventListener("click", async () => {
                         if (response && response.success) {
                             const url = response.decryptedUrl;
                             const li = document.createElement("li");
-                            li.textContent = `${new Date(parseInt(timestamp)).toLocaleString()}: ${url}`;
+                            const a = document.createElement("a");
+                            const span = document.createElement("span");
+
+                            const formattedTime = new Date(Number(timestamp)).toLocaleString();
+
+                            span.textContent = `${formattedTime}: `;
+                            a.href = url;
+                            a.textContent = url;
+                            a.target = "_blank";
+
+                            li.appendChild(span);
+                            li.appendChild(a);
                             historyList.appendChild(li);
                         }
                     });
@@ -214,13 +237,13 @@ document.getElementById("show-history").addEventListener("click", async () => {
                     console.error("Failed to process history item:", error);
                 }
             }
-            
+
             // Add "Load more" button if there are still more items
             if (skip + count < timestamps.length) {
                 const loadMoreLi = document.createElement("li");
                 loadMoreLi.innerHTML = "<button id='load-more'>Load more...</button>";
                 historyList.appendChild(loadMoreLi);
-                
+
                 document.getElementById("load-more").addEventListener("click", () => {
                     // Load the next batch when clicked
                     loadMoreLi.remove();
@@ -228,7 +251,7 @@ document.getElementById("show-history").addEventListener("click", async () => {
                 });
             }
         }
-        
+
         // Start processing
         processNextBatch(0);
     });
