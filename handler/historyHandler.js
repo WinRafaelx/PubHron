@@ -29,7 +29,7 @@ async function initializeEncryption() {
 }
 
 
-async function deriveKeyFromPassword(password, providedSalt) {
+async function generateSalt(providedSalt) {
   try {
     if (providedSalt) {
       salt = Uint8Array.from(atob(providedSalt), (c) => c.charCodeAt(0));
@@ -41,6 +41,20 @@ async function deriveKeyFromPassword(password, providedSalt) {
         password_set: true
       });
     }
+    return true;
+  } catch (err) {
+    console.error("Error deriving key:", error);
+    return false;
+  }
+}
+
+async function deriveKeyFromPassword(password, providedSalt) {
+  try {
+
+    if (!providedSalt) {
+      throw new Error("Setting password yet?");
+    }
+
 
     const hashedPassword = await crypto.subtle.digest(
       "SHA-256",
@@ -150,5 +164,6 @@ export {
   decryptUrl,
   saveEncryptedUrl,
   resetEncryptionKey,
-  hasEncryptionKey
+  hasEncryptionKey,
+  generateSalt
 };
