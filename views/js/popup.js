@@ -68,7 +68,6 @@ document.getElementById("set-password").addEventListener("click", async () => {
                     // Switch to login view
                     document.getElementById("setup-view").style.display = "none";
                     document.getElementById("login-view").style.display = "block";
-                    window.close();
                 } else {
                     alert("Failed to set password: " + (response?.error || "Unknown error"));
                 }
