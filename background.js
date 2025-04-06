@@ -75,7 +75,7 @@ const processUrl = debounce(async (url) => {
           url: "views/html/popup.html",
           type: "popup",
           width: 400,
-          height: 600,
+          height: 300,
         },
           (window) => {
             chrome.runtime.sendMessage({ action: "sendUrlToPopup", url });
@@ -130,7 +130,7 @@ const processUrl = debounce(async (url) => {
   } catch (error) {
     console.error("Error processing URL:", error);
   }
-}, 1500);
+}, 1700);
 
 // Initialize navigation handlers with processUrl callback
 initNavigationHandlers(processUrl);

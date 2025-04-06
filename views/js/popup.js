@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     historyView.style.display = "block";
                 } else {
                     const h1 = document.createElement("h1");
-                    h1.textContent = "🔐 Do you want to log in to encrypt your history";
+                    h1.textContent = "🔐Login first to encrypt your history";
                     h1.style.fontSize = "16px";
                     h1.style.color = "#333";
                     h1.style.marginTop = "10px";
@@ -67,7 +67,15 @@ document.getElementById("set-password").addEventListener("click", async () => {
 
                     // Switch to login view
                     document.getElementById("setup-view").style.display = "none";
-                    document.getElementById("login-view").style.display = "block";
+                    const loginView = document.getElementById("login-view");
+                    const h1 = document.createElement("h1");
+                    h1.textContent = "🔐Login first to encrypt your history";
+                    h1.style.fontSize = "16px";
+                    h1.style.color = "#333";
+                    h1.style.marginTop = "10px";
+                    loginView.insertBefore(h1, loginView.firstChild);
+                    loginView.style.display = "block";
+
                 } else {
                     alert("Failed to set password: " + (response?.error || "Unknown error"));
                 }
@@ -110,10 +118,10 @@ document.getElementById("login-button").addEventListener("click", async () => {
                 button.textContent = originalText;
 
                 if (response && response.success) {
+                    window.close();  // Close the popup once login is successful
                     document.getElementById("login-view").style.display = "none";
                     document.getElementById("history-view").style.display = "block";
                     document.getElementById("history-list").innerHTML = "";
-                    window.close();  // Close the popup once login is successful
                 } else {
                     alert("Incorrect password. Please try again.");
                 }
