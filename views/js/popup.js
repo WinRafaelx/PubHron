@@ -75,7 +75,7 @@ document.getElementById("set-password").addEventListener("click", async () => {
                     h1.style.marginTop = "10px";
                     loginView.insertBefore(h1, loginView.firstChild);
                     loginView.style.display = "block";
-
+                    document.getElementById("password").value = '';
                 } else {
                     alert("Failed to set password: " + (response?.error || "Unknown error"));
                 }
