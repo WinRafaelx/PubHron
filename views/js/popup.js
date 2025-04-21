@@ -1,10 +1,36 @@
-// Check if password is already set when popup opens
-document.addEventListener('DOMContentLoaded', async () => {
+console.log("🔍 Popup script loaded");
+
+
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("📦 DOM Content Loaded");
+
     chrome.storage.local.get("encryption_salt", (result) => {
+        const setupView = document.getElementById("setup-view");
+        const loginView = document.getElementById("login-view");
+        const historyView = document.getElementById("history-view");
+
         if (result.encryption_salt) {
-            // Password already set, show login view
-            document.getElementById("setup-view").style.display = "none";
-            document.getElementById("login-view").style.display = "block";
+            setupView.style.display = "none";
+            loginView.style.display = "block";
+
+            // ถาม background ว่ามี encryptionKey พร้อมไหม
+            chrome.runtime.sendMessage({ action: "isEncryptionReady" }, (response) => {
+                if (response.ready) {
+                    loginView.style.display = "none";
+                    historyView.style.display = "block";
+                } else {
+                    const h1 = document.createElement("h1");
+                    h1.textContent = "🔐Login first to encrypt your history";
+                    h1.style.fontSize = "16px";
+                    h1.style.color = "#333";
+                    h1.style.marginTop = "10px";
+                    loginView.insertBefore(h1, loginView.firstChild);
+                }
+            });
+        } else {
+            setupView.style.display = "block";
+            loginView.style.display = "none";
+            historyView.style.display = "none";
         }
     });
 });
@@ -41,7 +67,15 @@ document.getElementById("set-password").addEventListener("click", async () => {
 
                     // Switch to login view
                     document.getElementById("setup-view").style.display = "none";
-                    document.getElementById("login-view").style.display = "block";
+                    const loginView = document.getElementById("login-view");
+                    const h1 = document.createElement("h1");
+                    h1.textContent = "🔐Login first to encrypt your history";
+                    h1.style.fontSize = "16px";
+                    h1.style.color = "#333";
+                    h1.style.marginTop = "10px";
+                    loginView.insertBefore(h1, loginView.firstChild);
+                    loginView.style.display = "block";
+                    document.getElementById("password").value = '';
                 } else {
                     alert("Failed to set password: " + (response?.error || "Unknown error"));
                 }
@@ -63,7 +97,6 @@ document.getElementById("login-button").addEventListener("click", async () => {
         return;
     }
 
-    // Check if the password is correct by trying to decrypt a test value
     chrome.storage.local.get("encryption_salt", async (result) => {
         if (!result.encryption_salt) {
             alert("No password has been set. Please set a password first.");
@@ -71,13 +104,11 @@ document.getElementById("login-button").addEventListener("click", async () => {
         }
 
         try {
-            // Show loading state
             const button = document.getElementById("login-button");
             const originalText = button.textContent;
             button.disabled = true;
             button.textContent = "Logging in...";
 
-            // Verify password by sending to background script
             chrome.runtime.sendMessage({
                 type: "VERIFY_PASSWORD",
                 password,
@@ -87,7 +118,7 @@ document.getElementById("login-button").addEventListener("click", async () => {
                 button.textContent = originalText;
 
                 if (response && response.success) {
-                    // Password correct, show history view
+                    window.close();  // Close the popup once login is successful
                     document.getElementById("login-view").style.display = "none";
                     document.getElementById("history-view").style.display = "block";
                     document.getElementById("history-list").innerHTML = "";
@@ -101,7 +132,6 @@ document.getElementById("login-button").addEventListener("click", async () => {
         }
     });
 });
-
 // Improved history loading with pagination
 document.getElementById("show-history").addEventListener("click", async () => {
     const historyList = document.getElementById("history-list");

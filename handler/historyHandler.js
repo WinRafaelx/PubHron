@@ -2,34 +2,20 @@ const encoder = new TextEncoder();
 
 let encryptionKey;
 let salt;
-let passwordSet = false;
+
 
 async function initializeEncryption() {
-  chrome.storage.local.get(["encryption_salt", "encryption_key", "password_set"], async (result) => {
+  chrome.storage.local.get(["encryption_salt"], async (result) => {
     if (result.encryption_salt) {
       salt = Uint8Array.from(atob(result.encryption_salt), (c) => c.charCodeAt(0));
-      passwordSet = !!result.password_set;
-      console.log("Salt found, password status:", passwordSet ? "set" : "needed");
     } else {
       console.log("No password set yet");
-    }
-
-    if (result.encryption_key) {
-      const keyBuffer = Uint8Array.from(atob(result.encryption_key), (c) => c.charCodeAt(0));
-      encryptionKey = await crypto.subtle.importKey(
-        "raw",
-        keyBuffer,
-        { name: "AES-GCM", length: 256 },
-        true,
-        ["encrypt", "decrypt"]
-      );
-      console.log("🔑 Encryption key restored");
     }
   });
 }
 
 
-async function deriveKeyFromPassword(password, providedSalt) {
+async function generateSalt(providedSalt) {
   try {
     if (providedSalt) {
       salt = Uint8Array.from(atob(providedSalt), (c) => c.charCodeAt(0));
@@ -41,6 +27,20 @@ async function deriveKeyFromPassword(password, providedSalt) {
         password_set: true
       });
     }
+    return true;
+  } catch (err) {
+    console.error("Error deriving key:", error);
+    return false;
+  }
+}
+
+async function deriveKeyFromPassword(password, providedSalt) {
+  try {
+
+    if (!providedSalt) {
+      throw new Error("Setting password yet?");
+    }
+
 
     const hashedPassword = await crypto.subtle.digest(
       "SHA-256",
@@ -66,11 +66,8 @@ async function deriveKeyFromPassword(password, providedSalt) {
       ["encrypt", "decrypt"]
     );
 
-    const exportedKey = await crypto.subtle.exportKey("raw", encryptionKey);
-    const keyString = btoa(String.fromCharCode(...new Uint8Array(exportedKey)));
-    chrome.storage.local.set({ encryption_key: keyString });
 
-    passwordSet = true;
+
     return true;
   } catch (error) {
     console.error("Error deriving key:", error);
@@ -134,7 +131,6 @@ function saveEncryptedUrl(encryptedData, iv) {
 
 function resetEncryptionKey() {
   encryptionKey = null;
-  passwordSet = false;
 
 }
 
@@ -150,5 +146,6 @@ export {
   decryptUrl,
   saveEncryptedUrl,
   resetEncryptionKey,
-  hasEncryptionKey
+  hasEncryptionKey,
+  generateSalt
 };

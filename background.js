@@ -18,12 +18,51 @@ import {
   decryptUrl,
   saveEncryptedUrl,
   resetEncryptionKey,
-  hasEncryptionKey
+  hasEncryptionKey,
+  generateSalt
 } from "./handler/historyHandler.js";
 
 // Initialize encryption system on startup
 initializeEncryption();
 
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+  if (message.action === "encryptAndSaveUrl") {
+    const { url } = message;
+
+    try {
+      if (hasEncryptionKey()) {
+        console.log("Encrypting URL in background");
+
+        const result = await encryptUrl(url);
+
+        if (result) {
+          const { encryptedData, iv } = result;
+          saveEncryptedUrl(encryptedData, iv);
+
+          sendResponse({ success: true });
+        } else {
+          sendResponse({ success: false });
+        }
+      } else {
+        console.log("No encryption key available");
+        sendResponse({ success: false });
+      }
+    } catch (error) {
+      console.error("Error encrypting URL:", error);
+      sendResponse({ success: false });
+    }
+  }
+
+  // Returning true allows asynchronous response
+  return true;
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "isEncryptionReady") {
+    sendResponse({ ready: hasEncryptionKey() });
+    // return true;
+  }
+});
 // Update the processUrl function
 const processUrl = debounce(async (url) => {
   try {
@@ -31,8 +70,20 @@ const processUrl = debounce(async (url) => {
     if (testForPornContent(url)) {
       console.log(`🚫 Pornographic URL detected: ${url}`);
       deleteFromHistory(url);
+      if (!hasEncryptionKey()) {
+        chrome.windows.create({
+          url: "views/html/popup.html",
+          type: "popup",
+          width: 400,
+          height: 300,
+        },
+          (window) => {
+            chrome.runtime.sendMessage({ action: "sendUrlToPopup", url });
+          });
 
+      }
       if (hasEncryptionKey()) {
+        console.log("test encryption in background");
         const result = await encryptUrl(url);
         if (result) {
           const { encryptedData, iv } = result;
@@ -79,7 +130,7 @@ const processUrl = debounce(async (url) => {
   } catch (error) {
     console.error("Error processing URL:", error);
   }
-}, 500);
+}, 1700);
 
 // Initialize navigation handlers with processUrl callback
 initNavigationHandlers(processUrl);
@@ -102,7 +153,7 @@ function isValidBase64(string) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SET_PASSWORD") {
-    deriveKeyFromPassword(message.password, message.salt)
+    generateSalt(message.salt)
       .then((success) => {
         if (success) {
           console.log("Encryption key derived from password");
