@@ -1,9 +1,14 @@
 import { pornKeywords, gamblingKeywords, torrentPiracyKeywords, adTrackerDomains } from "../keywords.js";
 import { checkUrlSafety, isHttpOnly } from "./safetyChecker.js";
 
-const pornRegex = new RegExp(pornKeywords.join("|"), "iu");
-const gamblingRegex = new RegExp(gamblingKeywords.join("|"), "iu");
-const torrentPiracyRegex = new RegExp(torrentPiracyKeywords.join("|"), "iu");
+let pornRegex = new RegExp(pornKeywords.join("|"), "iu");
+let gamblingRegex = new RegExp(gamblingKeywords.join("|"), "iu");
+let torrentPiracyRegex = new RegExp(torrentPiracyKeywords.join("|"), "iu");
+
+let pornset = null; 
+let gamblingset = null;
+let torrentPiracyset = null;
+let adset = null;
 
 const checkedPages = new Map();
 const deleteQueue = new Map();
@@ -64,6 +69,82 @@ async function deleteFromHistory(url) {
   }
 }
 
+async function loadGamblingBlocklist() {
+  const blocklistURL = "https://blocklistproject.github.io/Lists/gambling.txt";
+  
+  try {
+      const response = await fetch(blocklistURL);
+      if (!response.ok) {
+           throw new Error(`HTTP error! status: ${response.status}`);
+       }
+      const text = await response.text();
+      const blockedSites = text.split("\n")
+                               .map(line => line.trim())
+                               .filter(line => line && !line.startsWith("#"));
+      return new Set(blockedSites);
+    } catch (error) {
+        console.error("❌ Error loading gambling blocklist:", error);
+        return null;
+    }
+}
+
+async function loadPornBlocklist() {
+  const blocklistURL = "https://blocklistproject.github.io/Lists/porn.txt";
+  
+  try {
+      const response = await fetch(blocklistURL);
+      if (!response.ok) {
+           throw new Error(`HTTP error! status: ${response.status}`);
+       }
+      const text = await response.text();
+      const blockedSites = text.split("\n")
+                               .map(line => line.trim())
+                               .filter(line => line && !line.startsWith("#"));
+      return new Set(blockedSites);
+    } catch (error) {
+        console.error("❌ Error loading porn blocklist:", error);
+        return null;
+    }
+}
+
+async function loadTorrentBlocklist() {
+  const blocklistURL = "https://blocklistproject.github.io/Lists/torrent.txt";
+  
+  try {
+      const response = await fetch(blocklistURL);
+      if (!response.ok) {
+           throw new Error(`HTTP error! status: ${response.status}`);
+       }
+      const text = await response.text();
+      const blockedSites = text.split("\n")
+                               .map(line => line.trim())
+                               .filter(line => line && !line.startsWith("#"));
+      return new Set(blockedSites);
+    } catch (error) {
+        console.error("❌ Error loading torrent blocklist:", error);
+        return null;
+    }
+}
+
+async function loadAdBlocklist() {
+  const blocklistURL = "https://blocklistproject.github.io/Lists/ads.txt";
+  
+  try {
+      const response = await fetch(blocklistURL);
+      if (!response.ok) {
+           throw new Error(`HTTP error! status: ${response.status}`);
+       }
+      const text = await response.text();
+      const blockedSites = text.split("\n")
+                               .map(line => line.trim())
+                               .filter(line => line && !line.startsWith("#"));
+      return new Set(blockedSites);
+    } catch (error) {
+        console.error("❌ Error loading ads blocklist:", error);
+        return null;
+    }
+}
+
 function analyzePageContent(tabId, url) {
   chrome.scripting.executeScript({
     target: { tabId },
@@ -78,20 +159,116 @@ function analyzePageContent(tabId, url) {
   });
 }
 
+loadGamblingBlocklist().then(loadedset => {
+  gamblingset = loadedset;
+  console.log("✅ Gambling blocklist regex loaded!");
+}).catch(error => {
+   console.error("Failed to initialize gambling regex:", error);
+});
+
+loadPornBlocklist().then(loadedset => {
+  pornset = loadedset;
+  console.log("✅ Porn blocklist regex loaded!");
+}).catch(error => {
+   console.error("Failed to initialize porn regex:", error);
+});
+
+loadTorrentBlocklist().then(loadedset => {
+  torrentPiracyset = loadedset;
+  console.log("✅ Torrent blocklist regex loaded!");
+}).catch(error => {
+   console.error("Failed to initialize torrent regex:", error);
+});
+
+loadAdBlocklist().then(loadedset => {
+  adset = loadedset;
+  console.log("✅ Ads blocklist regex loaded!");
+}).catch(error => {
+   console.error("Failed to initialize ads regex:", error);
+});
+
 function testForPornContent(url) {
+  if (!pornRegex) {
+    console.warn("⚠️ Porn regex not loaded yet!");
+    return false;
+  }
   return pornRegex.test(url.toLowerCase());
 }
 
 function testForGamblingContent(url) {
+  if (!gamblingRegex) {
+    console.warn("⚠️ Gambling regex not loaded yet!");
+    return false;
+  }
   return gamblingRegex.test(url.toLowerCase());
 }
 
 function testForPiracyContent(url) {
+  if (!torrentPiracyRegex) {
+    console.warn("⚠️ Torrent regex not loaded yet!");
+    return false;
+  }
   return torrentPiracyRegex.test(url.toLowerCase());
 }
 
 function isAdTracker(hostname) {
   return adTrackerDomains.some(domain => hostname.includes(domain));
+}
+
+function isUrlInpornSets(url) {
+  if (!pornset) {
+    console.warn("⚠️ Porn blocklist are not loaded yet!");
+    return false;
+  }
+
+  const hostname = new URL(url).hostname.toLowerCase();
+
+  if (pornset.has(hostname)) {
+    return { category: "porn", reason: "This URL is in the porn blocklist." };
+  }
+  return null;
+}
+
+function isUrlIngamblingSets(url) {
+  if (!gamblingset) {
+    console.warn("⚠️ Gambling blocklist are not loaded yet!");
+    return false;
+  }
+
+  const hostname = new URL(url).hostname.toLowerCase();
+
+  if (gamblingset.has(hostname)) {
+    return { category: "gambling", reason: "This URL is in the gambling blocklist." };
+  }
+  return null;
+}
+
+function isUrlIntorrentSets(url) {
+  if (!torrentPiracyset) {
+    console.warn("⚠️ Torrent blocklist are not loaded yet!");
+    return false;
+  }
+
+  const hostname = new URL(url).hostname.toLowerCase();
+
+  if (torrentPiracyset.has(hostname)) {
+    return { category: "torrentPiracy", reason: "This URL is in the torrent/piracy blocklist." };
+  }
+  return null;
+}
+
+function isUrlInadSets(url) {
+  if (!adset) {
+    console.warn("⚠️ adset blocklist are not loaded yet!");
+    return false;
+  }
+
+  const hostname = new URL(url).hostname.toLowerCase();
+
+  if (adset.has(hostname)) {
+    return { category: "ads", reason: "This URL is in the ads blocklist." };
+  }
+  return null;
 }
 
 function cleanCheckedPagesCache(limit = 1000, expiryMs = 3600000) {
@@ -141,7 +318,7 @@ async function checkSiteCategories(url, tabId) {
   }
 
   // Check for ads and trackers
-  if (isAdTracker(hostname) && !isSearch) {
+  if ((isAdTracker(hostname) || isUrlInadSets(href))&& !isSearch) {
     return {
       category: "adTracker",
       reason: "This appears to be an advertising or tracking domain"
@@ -149,7 +326,7 @@ async function checkSiteCategories(url, tabId) {
   }
 
   // Check for gambling
-  if (testForGamblingContent(href) && !isSearch) {
+  if ((testForGamblingContent(href) || isUrlIngamblingSets(href))&& !isSearch) {
     return {
       category: "gambling",
       reason: "This appears to be a gambling or betting website"
@@ -157,7 +334,7 @@ async function checkSiteCategories(url, tabId) {
   }
 
   // Check for torrents/piracy
-  if (testForPiracyContent(href) && !isSearch) {
+  if ((testForPiracyContent(href) || isUrlIntorrentSets(href))&& !isSearch) {
     return {
       category: "piracy",
       reason: "This appears to be a torrent or piracy-related website"
@@ -188,7 +365,7 @@ function initNavigationHandlers(urlCallback) {
       }
 
       // Always check for pornographic content first, regardless of being Google Search or not
-      if (testForPornContent(url)) {
+      if (testForPornContent(url) || isUrlInpornSets(url)) {
         deleteFromHistory(url);
 
         // Call the provided callback if it exists
@@ -229,7 +406,7 @@ function initNavigationHandlers(urlCallback) {
 
     cleanCheckedPagesCache();
 
-    if (testForPornContent(href)) {
+    if (testForPornContent(href) || isUrlInpornSets(href)) {
       deleteFromHistory(href);
       
       // Call the provided callback if it exists
@@ -258,5 +435,9 @@ export {
   isHttpOnly,
   checkSiteCategories,
   debounce,
-  isGoogleSearch // Export the new function
+  isGoogleSearch, // Export the new function
+  isUrlInadSets,
+  isUrlIngamblingSets,
+  isUrlInpornSets,
+  isUrlIntorrentSets
 };

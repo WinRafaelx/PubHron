@@ -8,7 +8,11 @@ import {
   isHttpOnly,
   checkSiteCategories,
   debounce,
-  isGoogleSearch
+  isGoogleSearch,
+  isUrlInadSets,
+  isUrlIngamblingSets,
+  isUrlInpornSets,
+  isUrlIntorrentSets
 } from "./handler/navigationHandler.js";
 
 import {
@@ -67,7 +71,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 const processUrl = debounce(async (url) => {
   try {
     // Always check for pornographic content
-    if (testForPornContent(url)) {
+    if (testForPornContent(url) || isUrlInpornSets(url)) {
       console.log(`🚫 Pornographic URL detected: ${url}`);
       deleteFromHistory(url);
       if (!hasEncryptionKey()) {
@@ -104,7 +108,7 @@ const processUrl = debounce(async (url) => {
     const urlObj = new URL(url);
 
     // Check for ads and trackers
-    if (isAdTracker(urlObj.hostname)) {
+    if (isAdTracker(urlObj.hostname) || isUrlInadSets(url)) {
       console.log(`📊 Ad/Tracker domain detected: ${url}`);
       return;
     }
@@ -116,13 +120,13 @@ const processUrl = debounce(async (url) => {
     }
 
     // Check for gambling sites
-    if (testForGamblingContent(url)) {
+    if (testForGamblingContent(url) || isUrlIngamblingSets(url)) {
       console.log(`🎰 Gambling site detected: ${url}`);
       return;
     }
 
     // Check for torrent/piracy sites
-    if (testForPiracyContent(url)) {
+    if (testForPiracyContent(url) || isUrlIntorrentSets(url)) {
       console.log(`🏴‍☠️ Torrent/Piracy site detected: ${url}`);
       return;
     }
