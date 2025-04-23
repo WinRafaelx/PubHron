@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Set up event listeners for buttons
   document.getElementById('go-back').addEventListener('click', () => {
-    window.history.back();
+    window.location.href = 'https://www.google.com';
   });
   
   document.getElementById('proceed-anyway').addEventListener('click', () => {
