@@ -289,7 +289,7 @@ async function showWarningPage(url, reason, tabId) {
   try {
     // Update the tab with our warning page
     await chrome.tabs.update(tabId, {
-      url: chrome.runtime.getURL(`warning.html?url=${encodeURIComponent(url)}&reason=${encodeURIComponent(reason)}`)
+      url: chrome.runtime.getURL(`views/html/warning.html?url=${encodeURIComponent(url)}&reason=${encodeURIComponent(reason)}`)
     });
     return true;
   } catch (error) {
@@ -360,7 +360,7 @@ function initNavigationHandlers(urlCallback) {
   chrome.webNavigation.onCommitted.addListener(async ({ url, frameId, tabId }) => {
     if (frameId === 0) {
       // Skip processing if it's already a warning page
-      if (url.startsWith(chrome.runtime.getURL('warning.html'))) {
+      if (url.startsWith(chrome.runtime.getURL('views/html/warning.html'))) {
         return;
       }
 
@@ -390,7 +390,7 @@ function initNavigationHandlers(urlCallback) {
     if (frameId !== 0) return;
 
     // Skip processing if it's already a warning page
-    if (url.startsWith(chrome.runtime.getURL('warning.html'))) {
+    if (url.startsWith(chrome.runtime.getURL('views/html/warning.html'))) {
       return;
     }
 
