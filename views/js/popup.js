@@ -132,6 +132,21 @@ document.getElementById("login-button").addEventListener("click", async () => {
         }
     });
 });
+
+document.getElementById("forget-button").addEventListener("click", async () => {
+    const loginView = document.getElementById("login-view");
+
+    if (document.getElementById("forget-warning")) return;
+
+    const message = document.createElement("p");
+    message.id = "forget-warning";
+    message.textContent = "🔐 Sorry, you need to use a new password and can't rewind your old history.";
+    message.style.fontSize = "16px";
+    message.style.color = "#333";
+    message.style.marginTop = "10px";
+
+    loginView.appendChild(message);
+});
 // Improved history loading with pagination
 document.getElementById("show-history").addEventListener("click", async () => {
     const historyList = document.getElementById("history-list");
