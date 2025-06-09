@@ -27,8 +27,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "views/html/warning.html",
-        ".env"
+        "views/html/warning.html"
       ],
       "matches": [
         "<all_urls>"
