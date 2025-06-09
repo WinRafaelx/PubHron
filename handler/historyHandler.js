@@ -29,7 +29,7 @@ async function generateSalt(providedSalt) {
     }
     return true;
   } catch (err) {
-    console.error("Error deriving key:", error);
+    console.error("Error deriving key:", err);
     return false;
   }
 }
