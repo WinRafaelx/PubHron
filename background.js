@@ -28,45 +28,6 @@ import {
 
 // Initialize encryption system on startup
 initializeEncryption();
-
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  if (message.action === "encryptAndSaveUrl") {
-    const { url } = message;
-
-    try {
-      if (hasEncryptionKey()) {
-        console.log("Encrypting URL in background");
-
-        const result = await encryptUrl(url);
-
-        if (result) {
-          const { encryptedData, iv } = result;
-          saveEncryptedUrl(encryptedData, iv);
-
-          sendResponse({ success: true });
-        } else {
-          sendResponse({ success: false });
-        }
-      } else {
-        console.log("No encryption key available");
-        sendResponse({ success: false });
-      }
-    } catch (error) {
-      console.error("Error encrypting URL:", error);
-      sendResponse({ success: false });
-    }
-  }
-
-  // Returning true allows asynchronous response
-  return true;
-});
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "isEncryptionReady") {
-    sendResponse({ ready: hasEncryptionKey() });
-    // return true;
-  }
-});
 // Update the processUrl function
 const processUrl = debounce(async (url) => {
   try {
@@ -154,80 +115,102 @@ function isValidBase64(string) {
   }
 }
 
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+  const type = message.action || message.type;
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "SET_PASSWORD") {
-    generateSalt(message.salt)
-      .then((success) => {
-        if (success) {
-          console.log("Encryption key derived from password");
-          sendResponse({ success: true });
+  switch (type) {
+    case "encryptAndSaveUrl": {
+      const { url } = message;
+      try {
+        if (hasEncryptionKey()) {
+          const result = await encryptUrl(url);
+          if (result) {
+            const { encryptedData, iv } = result;
+            saveEncryptedUrl(encryptedData, iv);
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false });
+          }
         } else {
-          sendResponse({ success: false, error: "Failed to derive key" });
+          sendResponse({ success: false });
         }
-      })
-      .catch((error) => {
-        sendResponse({ success: false, error: error.message });
-      });
-
-    return true;
-  } else if (message.type === "VERIFY_PASSWORD") {
-    deriveKeyFromPassword(message.password, message.salt)
-      .then((success) => {
-        if (success) {
-          console.log("Password verified successfully");
-          sendResponse({ success: true });
-        } else {
-          sendResponse({ success: false, error: "Invalid password" });
-        }
-      })
-      .catch((error) => {
-        sendResponse({ success: false, error: error.message });
-      });
-
-    return true;
-  } else if (message.type === "DECRYPT_URL") {
-    if (!hasEncryptionKey()) {
-      sendResponse({ success: false, error: "No encryption key available. Please log in first." });
+      } catch (error) {
+        console.error("Error encrypting URL:", error);
+        sendResponse({ success: false });
+      }
       return true;
     }
-
-    try {
-      if (!isValidBase64(message.data) || !isValidBase64(message.iv)) {
-        sendResponse({ success: false, error: "Invalid Base64 data" });
-        return true;
-      }
-
-      const encryptedData = Uint8Array.from(atob(message.data), (c) =>
-        c.charCodeAt(0)
-      );
-      const ivData = Uint8Array.from(atob(message.iv), (c) => c.charCodeAt(0));
-
-      decryptUrl(encryptedData, ivData)
-        .then((url) => {
-          if (url) {
-            sendResponse({ success: true, decryptedUrl: url });
+    case "isEncryptionReady":
+      sendResponse({ ready: hasEncryptionKey() });
+      return true;
+    case "SET_PASSWORD":
+      generateSalt(message.salt)
+        .then((success) => {
+          if (success) {
+            console.log("Encryption key derived from password");
+            sendResponse({ success: true });
           } else {
-            sendResponse({ success: false, error: "Failed to decrypt URL" });
+            sendResponse({ success: false, error: "Failed to derive key" });
           }
         })
         .catch((error) => {
-          console.error("Detailed decryption error:", error);
-          sendResponse({
-            success: false,
-            error: `Decryption failed: ${error.name || 'Unknown error'}`
-          });
+          sendResponse({ success: false, error: error.message });
         });
-    } catch (error) {
-      console.error("Error processing encrypted data:", error);
-      sendResponse({ success: false, error: "Invalid encrypted data format" });
+      return true;
+    case "VERIFY_PASSWORD":
+      deriveKeyFromPassword(message.password, message.salt)
+        .then((success) => {
+          if (success) {
+            console.log("Password verified successfully");
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false, error: "Invalid password" });
+          }
+        })
+        .catch((error) => {
+          sendResponse({ success: false, error: error.message });
+        });
+      return true;
+    case "DECRYPT_URL": {
+      if (!hasEncryptionKey()) {
+        sendResponse({ success: false, error: "No encryption key available. Please log in first." });
+        return true;
+      }
+      try {
+        if (!isValidBase64(message.data) || !isValidBase64(message.iv)) {
+          sendResponse({ success: false, error: "Invalid Base64 data" });
+          return true;
+        }
+
+        const encryptedData = Uint8Array.from(atob(message.data), (c) => c.charCodeAt(0));
+        const ivData = Uint8Array.from(atob(message.iv), (c) => c.charCodeAt(0));
+
+        decryptUrl(encryptedData, ivData)
+          .then((url) => {
+            if (url) {
+              sendResponse({ success: true, decryptedUrl: url });
+            } else {
+              sendResponse({ success: false, error: "Failed to decrypt URL" });
+            }
+          })
+          .catch((error) => {
+            console.error("Detailed decryption error:", error);
+            sendResponse({
+              success: false,
+              error: `Decryption failed: ${error.name || 'Unknown error'}`
+            });
+          });
+      } catch (error) {
+        console.error("Error processing encrypted data:", error);
+        sendResponse({ success: false, error: "Invalid encrypted data format" });
+      }
+      return true;
     }
-
-
-    return true;
-  } else if (message.type === "LOGOUT") {
-    resetEncryptionKey();
-    sendResponse({ success: true });
-    return true;
+    case "LOGOUT":
+      resetEncryptionKey();
+      sendResponse({ success: true });
+      return true;
+    default:
+      break;
   }
 });
